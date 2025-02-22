@@ -12,10 +12,10 @@ import path from 'path';
 import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
-import MenuBuilder from './menu';
-import { resolveHtmlPath } from './util';
 import extract from 'extract-zip';
 import fs from 'fs';
+import MenuBuilder from './menu';
+import { resolveHtmlPath } from './util';
 
 class AppUpdater {
   constructor() {
@@ -27,11 +27,52 @@ class AppUpdater {
 
 let mainWindow: BrowserWindow | null = null;
 
-ipcMain.on('ipc-example', async (event, arg) => {
-  const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  console.log(msgTemplate(arg));
-  event.reply('ipc-example', msgTemplate('pong'));
+ipcMain.handle('select-zip', async () => {
+  const { filePaths } = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [{ name: 'ZIP Files', extensions: ['zip'] }],
+  });
+  return filePaths[0] || null;
 });
+
+ipcMain.handle('select-folder', async () => {
+  const { filePaths } = await dialog.showOpenDialog({
+    properties: ['openDirectory'],
+  });
+  return filePaths[0] || null;
+});
+
+ipcMain.handle('extract-zip', async (_, zipPath, outputPath) => {
+  try {
+    const fileList = await getFileList(zipPath);
+    const totalFiles = fileList.length;
+    let extractedFiles = 0;
+
+    await extract(zipPath, {
+      dir: outputPath,
+      onEntry: () => {
+        extractedFiles++;
+        const progress = Math.round((extractedFiles / totalFiles) * 100);
+        mainWindow?.webContents.send('extract-progress', progress);
+      },
+    });
+
+    return 'Extraction successful!';
+  } catch (error) {
+    throw new Error(`Extraction failed: ${error}`);
+  }
+});
+
+// Function to list files inside the ZIP
+const getFileList = async (zipPath: string): Promise<string[]> => {
+  return new Promise((resolve, reject) => {
+    fs.createReadStream(zipPath)
+      .on('error', reject)
+      .on('data', (chunk) => {
+        resolve(chunk.toString().split('\n')); // Mock file listing (extract-zip does not provide a direct method)
+      });
+  });
+};
 
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
@@ -73,10 +114,13 @@ const createWindow = async () => {
 
   mainWindow = new BrowserWindow({
     show: false,
-    width: 1024,
-    height: 728,
+    width: 1280,
+    height: 1080,
+    center: true,
     icon: getAssetPath('icon.png'),
     webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),

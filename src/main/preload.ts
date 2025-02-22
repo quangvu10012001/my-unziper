@@ -22,6 +22,13 @@ const electronHandler = {
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
     },
   },
+  selectZip: () => ipcRenderer.invoke('select-zip'),
+  selectFolder: () => ipcRenderer.invoke('select-folder'),
+  extractZip: (zipPath: string, outputPath: string) =>
+    ipcRenderer.invoke('extract-zip', zipPath, outputPath),
+  onExtractProgress: (callback: (progress: number) => void) => {
+    ipcRenderer.on('extract-progress', (_, progress) => callback(progress));
+  },
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);
