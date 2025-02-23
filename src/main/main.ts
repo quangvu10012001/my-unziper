@@ -1,3 +1,4 @@
+/* eslint-disable prefer-promise-reject-errors */
 /* eslint global-require: off, no-console: off, promise/always-return: off */
 
 /**
@@ -17,6 +18,8 @@ import fs from 'fs';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 
+const { https } = require('follow-redirects');
+
 class AppUpdater {
   constructor() {
     log.transports.file.level = 'info';
@@ -26,6 +29,62 @@ class AppUpdater {
 }
 
 let mainWindow: BrowserWindow | null = null;
+
+ipcMain.handle('downloadFile', async (event, fileUrl, outputFolder) => {
+  if (!fileUrl || !outputFolder) {
+    throw new Error('Invalid URL or output folder');
+  }
+
+  const fileName =
+    path.basename(new URL(fileUrl).pathname) || 'downloaded_file';
+  const filePath = path.join(outputFolder, fileName);
+
+  console.log(`📥 Downloading: ${fileUrl}`);
+  console.log(`💾 Saving to: ${filePath}`);
+
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(filePath);
+    event.sender.send('download-progress', 0); // Initial progress
+
+    const options = {
+      headers: { 'User-Agent': 'Mozilla/5.0' }, // Avoid 403 errors
+    };
+
+    https
+      .get(fileUrl, options, (response) => {
+        console.log(`🔍 Response Status: ${response.statusCode}`);
+
+        if (response.statusCode >= 400) {
+          console.error(`❌ Download failed: ${response.statusCode}`);
+          reject(`Failed to download file: ${response.statusCode}`);
+          return;
+        }
+
+        const totalSize = parseInt(response.headers['content-length'], 10) || 0;
+        let downloadedSize = 0;
+
+        response.on('data', (chunk) => {
+          downloadedSize += chunk.length;
+          const progress = totalSize
+            ? Math.round((downloadedSize / totalSize) * 100)
+            : 0;
+          event.sender.send('download-progress', progress);
+          console.log(`📊 Download progress: ${progress}%`);
+        });
+
+        response.pipe(file);
+        file.on('finish', () => {
+          console.log(`✅ Download complete: ${filePath}`);
+          event.sender.send('download-progress', 100);
+          file.close(() => resolve(filePath));
+        });
+      })
+      .on('error', (error) => {
+        console.error(`❌ Download error: ${error.message}`);
+        fs.unlink(filePath, () => reject(error.message));
+      });
+  });
+});
 
 ipcMain.handle('select-zip', async () => {
   const { filePaths } = await dialog.showOpenDialog({

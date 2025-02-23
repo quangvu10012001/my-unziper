@@ -29,6 +29,10 @@ const electronHandler = {
   onExtractProgress: (callback: (progress: number) => void) => {
     ipcRenderer.on('extract-progress', (_, progress) => callback(progress));
   },
+  downloadFile: (url, folder) =>
+    ipcRenderer.invoke('downloadFile', url, folder),
+  onDownloadProgress: (callback) =>
+    ipcRenderer.on('download-progress', (_, progress) => callback(progress)),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);
