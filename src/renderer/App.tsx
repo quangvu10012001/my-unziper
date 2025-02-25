@@ -5,8 +5,41 @@ import { Button, Modal, Progress, message, Input } from 'antd';
 import 'antd/dist/reset.css';
 
 message.config({ top: 80, duration: 2 });
+// Custom Styled Button Component
+const StyledButton: React.FC<{
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}> = ({ onClick, disabled, children }) => {
+  return (
+    <Button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        width: '100%',
+        marginBottom: 10,
+        background: disabled ? '#555' : 'linear-gradient(to right, #0ef, #08f)',
+        border: 'none',
+        color: disabled ? '#aaa' : 'white',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.6 : 1,
+        transition: 'all 0.3s ease-in-out',
+        filter: disabled ? 'none' : 'brightness(1)', // Normal state
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled) e.currentTarget.style.filter = 'brightness(1.2)';
+      }}
+      onMouseLeave={(e) => {
+        if (!disabled) e.currentTarget.style.filter = 'brightness(1)';
+      }}
+    >
+      {children}
+    </Button>
+  );
+};
 
 const App: React.FC = () => {
+  const [isLoading, setIsLoading] = useState(true); // Splash screen state
   const [progress, setProgress] = useState<number>(0);
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [zipFile, setZipFile] = useState<string | null>(null);
@@ -15,8 +48,9 @@ const App: React.FC = () => {
   const [modalTitle, setModalTitle] = useState<string>(''); // Dynamic title for modal
 
   useEffect(() => {
+    setTimeout(() => setIsLoading(false), 3000); // Show splash screen for 3 sec
+
     if (window.electron) {
-      // Listen for ZIP extraction progress
       window.electron.onExtractProgress((progressValue: number) => {
         setProgress(progressValue);
         if (progressValue === 100) {
@@ -25,9 +59,8 @@ const App: React.FC = () => {
         }
       });
 
-      // Listen for download progress
       window.electron.onDownloadProgress((progressValue: number) => {
-        console.log(`📊 Download Progress: ${progressValue}%`); // Debug log
+        console.log(`📊 Download Progress: ${progressValue}%`);
         setProgress(progressValue);
 
         if (progressValue === 100) {
@@ -61,7 +94,7 @@ const App: React.FC = () => {
     }
 
     setProgress(0);
-    setModalTitle('Extracting ZIP File'); // Set modal title for extraction
+    setModalTitle('Extracting ZIP File');
     setModalVisible(true);
     message.loading({ content: '⏳ Extracting ZIP file...', key: 'extract' });
 
@@ -84,12 +117,12 @@ const App: React.FC = () => {
     }
 
     setProgress(0);
-    setModalTitle('Downloading File'); // Set modal title for download
+    setModalTitle('Downloading File');
     setModalVisible(true);
     message.loading({ content: '⏳ Downloading file...', key: 'download' });
 
-    console.log(`📥 Starting download from: ${downloadUrl}`); // Debug log
-    console.log(`💾 Saving to: ${outputFolder}`); // Debug log
+    console.log(`📥 Starting download from: ${downloadUrl}`);
+    console.log(`💾 Saving to: ${outputFolder}`);
 
     try {
       await window.electron.downloadFile(downloadUrl, outputFolder);
@@ -102,6 +135,52 @@ const App: React.FC = () => {
       setModalVisible(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          height: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#121212',
+          color: 'white',
+          flexDirection: 'column',
+        }}
+      >
+        {/* 🔥 Samsung One UI Loading Spinner */}
+        <div className="samsung-loader"></div>
+        <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginTop: '20px' }}>
+          My Unzip Tool
+        </h2>
+
+        {/* Samsung Spinner CSS */}
+        <style>
+          {`
+          .samsung-loader {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 4px solid transparent;
+            border-top: 4px solid #0ef;  /* Samsung Neon Blue */
+            border-left: 4px solid #0ef;
+            animation: rotate 1s linear infinite;
+          }
+
+          @keyframes rotate {
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}
+        </style>
+      </div>
+    );
+  }
 
   return (
     <div style={{ height: '100vh', width: '100vw', background: '#121212' }}>
@@ -154,14 +233,9 @@ const App: React.FC = () => {
               >
                 Select Output Folder
               </Button>
-              <Button
-                type="primary"
-                onClick={handleExtractZip}
-                disabled={!zipFile || !outputFolder}
-                style={{ width: '100%' }}
-              >
-                Extract ZIP
-              </Button>
+              <StyledButton onClick={handleExtractZip} disabled={!zipFile || !outputFolder}>
+                {!zipFile || !outputFolder ? 'Extract ZIP' : 'Extract ZIP'}
+              </StyledButton>
             </div>
           </Html>
         </mesh>
